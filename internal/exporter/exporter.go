@@ -20,6 +20,8 @@ type Config struct {
 	DeviceSNs    []string
 	StationID    int64
 
+	DiscoveryRefreshInterval time.Duration
+
 	EnableGeneric bool
 }
 
@@ -29,6 +31,9 @@ type Exporter struct {
 	mu          sync.RWMutex
 	ready       bool
 	lastSuccess time.Time
+
+	discoveredDeviceSNs []string
+	discoveryExpiresAt  time.Time
 
 	deviceUp   *prometheus.GaugeVec
 	lastUpdate *prometheus.GaugeVec
@@ -41,6 +46,9 @@ type Exporter struct {
 func New(cfg Config) *Exporter {
 	if cfg.PollInterval <= 0 {
 		cfg.PollInterval = 60 * time.Second
+	}
+	if cfg.DiscoveryRefreshInterval == 0 {
+		cfg.DiscoveryRefreshInterval = 24 * time.Hour
 	}
 
 	e := &Exporter{
@@ -89,18 +97,16 @@ func (e *Exporter) Ready() bool {
 }
 
 func (e *Exporter) Run(ctx context.Context) {
-	t := time.NewTicker(e.cfg.PollInterval)
-	defer t.Stop()
-
-	e.poll(ctx)
-
 	for {
+		e.poll(ctx)
+
+		timer := time.NewTimer(e.cfg.PollInterval)
 		select {
 		case <-ctx.Done():
+			timer.Stop()
 			log.Info().Msg("exporter stopped")
 			return
-		case <-t.C:
-			e.poll(ctx)
+		case <-timer.C:
 		}
 	}
 }
@@ -157,6 +163,10 @@ func (e *Exporter) updateGroups(deviceSN string, points []models.MetricPoint) {
 }
 
 func (e *Exporter) discoverDeviceSNs(ctx context.Context) ([]string, error) {
+	if sns := e.cachedDeviceSNs(); len(sns) > 0 {
+		return sns, nil
+	}
+
 	stations, err := e.cfg.Client.Stations(ctx)
 	if err != nil {
 		return nil, err
@@ -184,8 +194,37 @@ func (e *Exporter) discoverDeviceSNs(ctx context.Context) ([]string, error) {
 			out = append(out, d.DeviceSN)
 		}
 	}
+	e.storeDiscoveredDeviceSNs(out)
 	log.Info().Int("devices", len(out)).Msg("auto-discovery complete")
 	return out, nil
+}
+
+func (e *Exporter) cachedDeviceSNs() []string {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	if len(e.discoveredDeviceSNs) == 0 {
+		return nil
+	}
+	if e.cfg.DiscoveryRefreshInterval > 0 && time.Now().After(e.discoveryExpiresAt) {
+		return nil
+	}
+
+	out := make([]string, len(e.discoveredDeviceSNs))
+	copy(out, e.discoveredDeviceSNs)
+	return out
+}
+
+func (e *Exporter) storeDiscoveredDeviceSNs(deviceSNs []string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.discoveredDeviceSNs = append(e.discoveredDeviceSNs[:0], deviceSNs...)
+	if e.cfg.DiscoveryRefreshInterval > 0 {
+		e.discoveryExpiresAt = time.Now().Add(e.cfg.DiscoveryRefreshInterval)
+	} else {
+		e.discoveryExpiresAt = time.Time{}
+	}
 }
 
 func (e *Exporter) setReady() {

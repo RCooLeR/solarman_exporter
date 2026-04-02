@@ -33,23 +33,25 @@ func Run(argv []string) {
 			log.Logger = log.Level(cfg.LogLevel)
 
 			client := solarman.NewClient(solarman.Config{
-				BaseURL:     cfg.BaseURL,
-				APIVersion:  cfg.APIVersion,
-				Language:    cfg.Language,
-				AppID:       cfg.AppID,
-				AppSecret:   cfg.AppSecret,
-				Email:       cfg.Email,
-				Password:    cfg.Password,
-				PasswordSHA: cfg.PasswordSHA256,
-				HTTPTimeout: cfg.HTTPTimeout,
+				BaseURL:            cfg.BaseURL,
+				APIVersion:         cfg.APIVersion,
+				Language:           cfg.Language,
+				AppID:              cfg.AppID,
+				AppSecret:          cfg.AppSecret,
+				Email:              cfg.Email,
+				Password:           cfg.Password,
+				PasswordSHA:        cfg.PasswordSHA256,
+				HTTPTimeout:        cfg.HTTPTimeout,
+				YearlyRequestLimit: cfg.YearlyRequestLimit,
 			})
 
 			exp := exporter.New(exporter.Config{
-				Client:        client,
-				PollInterval:  cfg.PollInterval,
-				DeviceSNs:     cfg.DeviceSN,
-				StationID:     cfg.StationID,
-				EnableGeneric: cfg.EnableGeneric,
+				Client:                   client,
+				PollInterval:             cfg.PollInterval,
+				DeviceSNs:                cfg.DeviceSN,
+				StationID:                cfg.StationID,
+				DiscoveryRefreshInterval: cfg.DiscoveryRefreshInterval,
+				EnableGeneric:            cfg.EnableGeneric,
 			})
 
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -95,6 +97,8 @@ func Run(argv []string) {
 				Str("listen", cfg.Listen).
 				Str("metrics_path", cfg.MetricsPath).
 				Dur("poll_interval", cfg.PollInterval).
+				Int64("yearly_request_limit", cfg.YearlyRequestLimit).
+				Dur("discovery_refresh_interval", cfg.DiscoveryRefreshInterval).
 				Msg("Starting Solarman Exporter")
 
 			err = srv.ListenAndServe()

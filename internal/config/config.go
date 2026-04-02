@@ -30,6 +30,9 @@ type Config struct {
 	PollInterval time.Duration
 	HTTPTimeout  time.Duration
 
+	YearlyRequestLimit       int64
+	DiscoveryRefreshInterval time.Duration
+
 	EnableGeneric bool
 }
 
@@ -54,6 +57,8 @@ func Flags() []cli.Flag {
 
 		&cli.DurationFlag{Name: "poll-interval", Value: 30 * time.Second, EnvVars: []string{"SOLARMAN_POLL_INTERVAL"}},
 		&cli.DurationFlag{Name: "http-timeout", Value: 20 * time.Second, EnvVars: []string{"SOLARMAN_HTTP_TIMEOUT"}},
+		&cli.Int64Flag{Name: "yearly-request-limit", Value: 200000, EnvVars: []string{"SOLARMAN_YEARLY_REQUEST_LIMIT"}},
+		&cli.DurationFlag{Name: "discovery-refresh-interval", Value: 24 * time.Hour, EnvVars: []string{"SOLARMAN_DISCOVERY_REFRESH_INTERVAL"}},
 
 		&cli.BoolFlag{Name: "enable-generic", Value: true, EnvVars: []string{"SOLARMAN_ENABLE_GENERIC"}},
 	}
@@ -85,12 +90,21 @@ func FromCLI(c *cli.Context) (Config, error) {
 		PollInterval: c.Duration("poll-interval"),
 		HTTPTimeout:  c.Duration("http-timeout"),
 
+		YearlyRequestLimit:       c.Int64("yearly-request-limit"),
+		DiscoveryRefreshInterval: c.Duration("discovery-refresh-interval"),
+
 		EnableGeneric: c.Bool("enable-generic"),
 	}
 
 	if cfg.Password == "" && cfg.PasswordSHA256 == "" {
 		log.Error().Err(errors.New("either --password or --password-sha256 must be provided")).Msg("password is required")
 		return Config{}, errors.New("either --password or --password-sha256 must be provided")
+	}
+	if cfg.YearlyRequestLimit < 0 {
+		return Config{}, errors.New("--yearly-request-limit must be >= 0")
+	}
+	if cfg.DiscoveryRefreshInterval < 0 {
+		return Config{}, errors.New("--discovery-refresh-interval must be >= 0")
 	}
 	return cfg, nil
 }

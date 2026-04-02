@@ -16,6 +16,7 @@ import (
 type tokenResponse struct {
 	Success bool   `json:"success"`
 	Msg     string `json:"msg"`
+	Code    any    `json:"code"`
 
 	AccessToken          string `json:"access_token"`
 	TokenType            string `json:"token_type"`
@@ -85,7 +86,10 @@ func (c *Client) obtainToken(ctx context.Context) error {
 		return fmt.Errorf("token Unmarshal failed: %w", err)
 	}
 	if !tr.Success || tr.AccessToken == "" {
-		return fmt.Errorf("token error: %s", tr.Msg)
+		if tr.Code != nil {
+			return fmt.Errorf("token error: code=%v msg=%s", tr.Code, tr.Msg)
+		}
+		return fmt.Errorf("token error: msg=%s", tr.Msg)
 	}
 	tr.AccessTokenExpiresAt = time.Now().Add(time.Duration(tr.ExpiresIn-5) * time.Second)
 	c.mu.Lock()

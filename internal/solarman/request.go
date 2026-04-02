@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 func (c *Client) buildURL(path string, withAppLang bool) (string, error) {
@@ -27,10 +28,44 @@ func (c *Client) buildURL(path string, withAppLang bool) (string, error) {
 	return u.String(), nil
 }
 
+func (c *Client) reserveRequestSlot(ctx context.Context) error {
+	if c.requestSpacing <= 0 {
+		return nil
+	}
+
+	c.mu.Lock()
+	readyAt := c.nextRequestAt
+	now := time.Now()
+	if readyAt.Before(now) {
+		readyAt = now
+	}
+	c.nextRequestAt = readyAt.Add(c.requestSpacing)
+	c.mu.Unlock()
+
+	wait := time.Until(readyAt)
+	if wait <= 0 {
+		return nil
+	}
+
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
 // doJSON returns (rawBody, statusCode, error).
 // withAppLang -> add appId & language query params.
 // withAuth -> add Authorization header.
 func (c *Client) doJSON(ctx context.Context, method, path string, withAppLang bool, withAuth bool, body any) ([]byte, int, error) {
+	if err := c.reserveRequestSlot(ctx); err != nil {
+		return nil, 0, err
+	}
+
 	u, err := c.buildURL(path, withAppLang)
 	if err != nil {
 		return nil, 0, err
