@@ -119,7 +119,7 @@ services:
       # SOLARMAN_STATION_ID: "0"
 
       # Exporter runtime
-      SOLARMAN_POLL_INTERVAL: "60s"
+      SOLARMAN_POLL_INTERVAL: "160s"
       SOLARMAN_HTTP_TIMEOUT: "15s"
       SOLARMAN_YEARLY_REQUEST_LIMIT: "200000"
       SOLARMAN_DISCOVERY_REFRESH_INTERVAL: "24h"
@@ -138,7 +138,7 @@ Create `prometheus/prometheus.yml`:
 
 ```yaml
 global:
-  scrape_interval: 30s
+  scrape_interval: 160s
 
 scrape_configs:
   - job_name: solarman
