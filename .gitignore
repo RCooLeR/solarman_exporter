@@ -1,0 +1,32 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/solarman-exporter
+/solarman_exporter
+/bin/
+/dist/
+
+# Test and coverage artifacts
+*.test
+*.out
+coverage.out
+coverage.html
+
+# Logs
+*.log
+
+# Environment and local overrides
+.env
+.env.*
+!.env.example
+
+# IDE and editor metadata
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
